@@ -376,6 +376,7 @@ export class MonacoEditorModel implements ITextEditorModel, TextEditorDocument {
     protected async readContents(): Promise<string | monaco.editor.ITextBufferFactory | undefined> {
         try {
             const options = { encoding: this.getEncoding() };
+            console.error('+++++++++++++++++++ readContents ', this.resource.uri.toString());
             const content = await (this.resource.readStream ? this.resource.readStream(options) : this.resource.readContents(options));
             let value;
             if (typeof content === 'string') {
@@ -388,6 +389,8 @@ export class MonacoEditorModel implements ITextEditorModel, TextEditorDocument {
             return value;
         } catch (e) {
             this.setValid(false);
+            console.error('+++++++++++++++++++ readContents +++ ERROR ', e);
+            console.dir(e);
             if (ResourceError.NotFound.is(e)) {
                 return undefined;
             }

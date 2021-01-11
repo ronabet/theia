@@ -190,6 +190,7 @@ export abstract class AbstractResourcePreferenceProvider extends PreferenceProvi
             } else {
                 preferences = {};
                 console.error(' ++++++++++++ abstract-resource-provider +++ readPreferences +++ NOT getParsedContent ');
+                console.error(' +++ NOT getParsedContent ', model.getText());
             }
             this.handlePreferenceChanges(preferences);
         } catch (e) {
