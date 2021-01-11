@@ -181,15 +181,20 @@ export abstract class AbstractResourcePreferenceProvider extends PreferenceProvi
             console.error(' ++++++++++++ abstract-resource-provider +++ readPreferences +++ RETURN ');
             return;
         }
+        const uri = model.uri.toString();
         try {
             let preferences;
             if (model.valid) {
                 const content = model.getText();
                 preferences = this.getParsedContent(content);
-                console.error(' ++++++++++++ abstract-resource-provider +++ readPreferences +++ getParsedContent ');
+
+                console.error(' ++++++++++++ abstract-resource-provider +++ readPreferences +++ getParsedContent ', uri);
+                if (uri.endsWith('launch.json')) {
+                    console.error('+++ Contents !!!  ', content);
+                }
             } else {
                 preferences = {};
-                console.error(' ++++++++++++ abstract-resource-provider +++ readPreferences +++ NOT getParsedContent ');
+                console.error(' ++++++++++++ abstract-resource-provider +++ readPreferences +++ NOT getParsedContent ', uri);
                 console.error(' +++ NOT getParsedContent ', model.getText());
             }
             this.handlePreferenceChanges(preferences);

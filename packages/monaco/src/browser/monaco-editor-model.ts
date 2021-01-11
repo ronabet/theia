@@ -374,15 +374,19 @@ export class MonacoEditorModel implements ITextEditorModel, TextEditorDocument {
         this.trace(log => log('MonacoEditorModel.doSync - exit'));
     }
     protected async readContents(): Promise<string | monaco.editor.ITextBufferFactory | undefined> {
+        const uri = this.resource.uri.toString();
         try {
             const options = { encoding: this.getEncoding() };
-            console.error('+++++++++++++++++++ readContents ', this.resource.uri.toString());
+            console.error('+++++++++++++++++++ readContents ', uri);
             const content = await (this.resource.readStream ? this.resource.readStream(options) : this.resource.readContents(options));
             let value;
             if (typeof content === 'string') {
                 value = content;
             } else {
                 value = monaco.textModel.createTextBufferFactoryFromStream(content);
+            }
+            if (uri.endsWith('launch.json')) {
+                console.error('+++ Contents ', content);
             }
             this.updateContentEncoding();
             this.setValid(true);
