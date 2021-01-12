@@ -366,7 +366,8 @@ export class FileSystemProviderServer implements RemoteFileSystemServer {
             }
         }));
         this.toDispose.push(this.provider.onDidChangeFile(changes => {
-            console.error('************ file-system-provider ***  onDidChangeFile ', changes[0].resource);
+            const uriList = changes.map(({ resource }) => resource.toString());
+            console.error('************ file-system-provider ***  onDidChangeFile ', uriList);
             if (this.client) {
                 this.client.notifyDidChangeFile({
                     changes: changes.map(({ resource, type }) => ({ resource: resource.toString(), type }))

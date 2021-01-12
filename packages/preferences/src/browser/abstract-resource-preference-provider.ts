@@ -54,7 +54,10 @@ export abstract class AbstractResourcePreferenceProvider extends PreferenceProvi
     protected async init(): Promise<void> {
         console.error(' ++++++++++++ abstract-resource-provider +++ INIT ');
         const uri = this.getUri();
-        console.error(' ++++++++++++ abstract-resource-provider +++ INIT +++ uri ', uri);
+        if (uri.toString().endsWith('launch.json')) {
+            console.error(' ++++++++++++ abstract-resource-provider +++ INIT +++ uri ', uri.toString());
+        }
+
         this.toDispose.push(Disposable.create(() => this.loading.reject(new Error(`preference provider for '${uri}' was disposed`))));
         this._ready.resolve();
 

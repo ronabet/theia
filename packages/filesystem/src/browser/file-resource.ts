@@ -265,13 +265,23 @@ export class FileResource implements Resource {
 
     protected async sync(): Promise<void> {
         if (await this.isInSync()) {
+            console.error('77777777 file-resource 777777 NOT fire onDidChangeContents ', this.uri.toString());
             return;
         }
+        console.error('77777777 file-resource 777777 fire onDidChangeContents ', this.uri.toString());
         this.onDidChangeContentsEmitter.fire(undefined);
     }
     protected async isInSync(): Promise<boolean> {
+        console.error('77777777777777 isInSync ', this.uri.toString());
         try {
             const stat = await this.fileService.resolve(this.uri, { resolveMetadata: true });
+            if (this.version) {
+                console.error('777 this.version.mtime ', this.version.mtime, ' /// ', this.uri.toString());
+            } else {
+                console.error('777 NOT this.version.mtime ', ' /// ', this.uri.toString());
+            }
+
+            console.error('777 stat.mtime ', stat.mtime, ' /// ', this.uri.toString());
             return !!this.version && this.version.mtime >= stat.mtime;
         } catch {
             return !this.version;
