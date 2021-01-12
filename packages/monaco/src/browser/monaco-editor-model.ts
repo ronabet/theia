@@ -166,7 +166,14 @@ export class MonacoEditorModel implements ITextEditorModel, TextEditorDocument {
             this.toDispose.push(this.model);
             this.toDispose.push(this.model.onDidChangeContent(event => this.fireDidChangeContent(event)));
             if (this.resource.onDidChangeContents) {
-                this.toDispose.push(this.resource.onDidChangeContents(() => this.sync()));
+                this.toDispose.push(this.resource.onDidChangeContents(() => {
+                    const resourceUri = this.resource.uri.toString();
+                    if (resourceUri.endsWith('launch.json')) {
+                        console.error('!!!!!!!!! monaco-editor-model !!! onDidChangeContents ', resourceUri);
+                    }
+
+                    this.sync();
+                }));
             }
         }
     }
@@ -377,17 +384,24 @@ export class MonacoEditorModel implements ITextEditorModel, TextEditorDocument {
         const uri = this.resource.uri.toString();
         try {
             const options = { encoding: this.getEncoding() };
-            console.error('+++++++++++++++++++ readContents ', uri);
+            if (uri.endsWith('launch.json')) {
+                console.error('+++++++++++++++++++ readContents ', uri);
+            }
             const content = await (this.resource.readStream ? this.resource.readStream(options) : this.resource.readContents(options));
             let value;
             if (typeof content === 'string') {
                 value = content;
+                if (uri.endsWith('launch.json')) {
+                    console.error('+++ Contents ', value);
+                }
             } else {
                 value = monaco.textModel.createTextBufferFactoryFromStream(content);
+                const textValue = await value;
+                if (uri.endsWith('launch.json')) {
+                    console.error('+++ Contents ', textValue.getFirstLineText(10000));
+                }
             }
-            if (uri.endsWith('launch.json')) {
-                console.error('+++ Contents ', content);
-            }
+
             this.updateContentEncoding();
             this.setValid(true);
             return value;

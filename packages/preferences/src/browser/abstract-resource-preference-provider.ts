@@ -190,7 +190,7 @@ export abstract class AbstractResourcePreferenceProvider extends PreferenceProvi
 
                 console.error(' ++++++++++++ abstract-resource-provider +++ readPreferences +++ getParsedContent ', uri);
                 if (uri.endsWith('launch.json')) {
-                    console.error('+++ Contents !!!  ', content);
+                    console.dir(content);
                 }
             } else {
                 preferences = {};
