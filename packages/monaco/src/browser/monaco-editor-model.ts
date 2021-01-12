@@ -98,6 +98,7 @@ export class MonacoEditorModel implements ITextEditorModel, TextEditorDocument {
         this.resolveModel = this.readContents().then(
             content => this.initialize(content || '')
         );
+        console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! new monaco-editor-model ', resource.uri.toString());
     }
 
     dispose(): void {
@@ -148,6 +149,7 @@ export class MonacoEditorModel implements ITextEditorModel, TextEditorDocument {
      */
     protected initialize(value: string | monaco.editor.ITextBufferFactory): void {
         if (!this.toDispose.disposed) {
+            console.error('!!!!!!!! monaco-editor-model !!!! initialize ', this.resource.uri.toString());
             const uri = monaco.Uri.parse(this.resource.uri.toString());
             let firstLine;
             if (typeof value === 'string') {
@@ -166,6 +168,7 @@ export class MonacoEditorModel implements ITextEditorModel, TextEditorDocument {
             this.toDispose.push(this.model);
             this.toDispose.push(this.model.onDidChangeContent(event => this.fireDidChangeContent(event)));
             if (this.resource.onDidChangeContents) {
+                console.error('!!!!!!!! monaco-editor-model !!!! subscribe on onDidChangeContents ', this.resource.uri.toString());
                 this.toDispose.push(this.resource.onDidChangeContents(() => {
                     const resourceUri = this.resource.uri.toString();
                     if (resourceUri.endsWith('launch.json')) {
@@ -174,7 +177,11 @@ export class MonacoEditorModel implements ITextEditorModel, TextEditorDocument {
 
                     this.sync();
                 }));
+            } else {
+                console.error('!!!!!!!! monaco-editor-model !!!! NOT subscribe on onDidChangeContents ', this.resource.uri.toString());
             }
+        } else {
+            console.error('!!!!!!!! monaco-editor-model !!!! NOT initialize ', this.resource.uri.toString());
         }
     }
 
