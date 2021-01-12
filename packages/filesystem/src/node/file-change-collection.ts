@@ -73,6 +73,8 @@ export class FileChangeCollection {
     }
 
     values(): FileChange[] {
+        const changes = Array.from(this.changes.values());
+        console.error('++++++++++++++++++++++++++++++ CHANGES ', changes);
         return Array.from(this.changes.values()).reduce((acc, val) => acc.concat(val), []);
     }
 }

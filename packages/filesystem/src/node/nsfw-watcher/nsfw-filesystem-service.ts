@@ -268,6 +268,7 @@ export class NsfwWatcher {
                     }
                 }));
                 const changes = fileChangeCollection.values();
+                console.error('+++ CHANGES ', changes);
                 // If all changes are part of the ignored files, the collection will be empty.
                 if (changes.length > 0) {
                     this.fileSystemWatcherClient.onDidFilesChanged({

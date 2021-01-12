@@ -164,7 +164,8 @@ export class RemoteFileSystemProvider implements Required<FileSystemProvider>, D
         }, this.readyDeferred.reject);
         this.server.setClient({
             notifyDidChangeFile: ({ changes }) => {
-                console.error('!!!!! remote-filesystem-provider !!! onDidChangeFileEmitter ', changes[0].resource);
+                const uriList = changes.map(({ resource }) => resource.toString());
+                console.error('!!!!! remote-filesystem-provider !!! onDidChangeFileEmitter ', uriList);
                 this.onDidChangeFileEmitter.fire(changes.map(event => ({ resource: new URI(event.resource), type: event.type })));
             },
             notifyFileWatchError: () => {
@@ -367,7 +368,7 @@ export class FileSystemProviderServer implements RemoteFileSystemServer {
         }));
         this.toDispose.push(this.provider.onDidChangeFile(changes => {
             const uriList = changes.map(({ resource }) => resource.toString());
-            console.error('************ file-system-provider ***  onDidChangeFile ', uriList);
+            console.error('************ file-system-provider server222 ***  onDidChangeFile ', uriList);
             if (this.client) {
                 this.client.notifyDidChangeFile({
                     changes: changes.map(({ resource, type }) => ({ resource: resource.toString(), type }))
