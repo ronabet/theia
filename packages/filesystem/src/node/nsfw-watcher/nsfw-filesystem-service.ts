@@ -249,6 +249,7 @@ export class NsfwWatcher {
             this.nsfwEventProcessingQueue = this.nsfwEventProcessingQueue.then(async () => {
                 const fileChangeCollection = new FileChangeCollection();
                 await Promise.all(events.map(async event => {
+                    console.error('======================= EVENT ', event.directory, ' /// ', event.file, ' /// ', event.newFile, ' /// ', event.oldFile);
                     if (event.action === nsfw.actions.RENAMED) {
                         const [oldPath, newPath] = await Promise.all([
                             this.resolveEventPath(event.directory, event.oldFile!),
@@ -264,6 +265,8 @@ export class NsfwWatcher {
                             this.pushFileChange(fileChangeCollection, FileChangeType.DELETED, path);
                         } else if (event.action === nsfw.actions.MODIFIED) {
                             this.pushFileChange(fileChangeCollection, FileChangeType.UPDATED, path);
+                        } else {
+                            console.error('==== EVENT === NOT CASE ', path);
                         }
                     }
                 }));
@@ -296,9 +299,13 @@ export class NsfwWatcher {
     }
 
     protected pushFileChange(changes: FileChangeCollection, type: FileChangeType, path: string): void {
+        console.error('==== PUSH ', path);
         if (!this.isIgnored(path)) {
+            console.error('==== PUSH === NOT ignored ', path);
             const uri = FileUri.create(path).toString();
             changes.push({ type, uri });
+        } else {
+            console.error('==== PUSH === IGNORED ', path);
         }
     }
 
