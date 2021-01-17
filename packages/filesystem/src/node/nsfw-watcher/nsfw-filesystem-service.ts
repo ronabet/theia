@@ -249,7 +249,7 @@ export class NsfwWatcher {
             this.nsfwEventProcessingQueue = this.nsfwEventProcessingQueue.then(async () => {
                 const fileChangeCollection = new FileChangeCollection();
                 await Promise.all(events.map(async event => {
-                    console.error('======================= EVENT ', event.directory, ' /// ', event.file, ' /// ', event.newFile, ' /// ', event.oldFile);
+                    console.error('======================= EVENT ', event.directory, ' /// ', event.file, ' /// ', event.action);
                     if (event.action === nsfw.actions.RENAMED) {
                         const [oldPath, newPath] = await Promise.all([
                             this.resolveEventPath(event.directory, event.oldFile!),
