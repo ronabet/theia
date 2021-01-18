@@ -24,6 +24,7 @@ import URI from '@theia/core/lib/common/uri';
 import { CommandRegistryImpl } from './command-registry';
 import { Emitter } from '@theia/core/lib/common/event';
 import { Command } from '../common/plugin-api-rpc-model';
+import debounce = require('lodash.debounce');
 
 export class ScmExtImpl implements ScmExt {
     private handle: number = 0;
@@ -249,6 +250,9 @@ class SourceControlImpl implements theia.SourceControl {
     }
 
     set statusBarCommands(statusBarCommands: theia.Command[] | undefined) {
+        if (this._statusBarCommands && statusBarCommands && commandListEquals(this._statusBarCommands, statusBarCommands)) {
+            return;
+        }
         this.toDisposeOnStatusBarCommands.dispose();
         this.toDispose.push(this.toDisposeOnStatusBarCommands);
 
@@ -277,6 +281,50 @@ class SourceControlImpl implements theia.SourceControl {
     }
 }
 
+function commandListEquals(a: readonly theia.Command[], b: readonly theia.Command[]): boolean {
+    return equals(a, b, commandEquals);
+}
+
+function equals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArray<T> | undefined, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
+    if (one === other) {
+        return true;
+    }
+
+    if (!one || !other) {
+        return false;
+    }
+
+    if (one.length !== other.length) {
+        return false;
+    }
+
+    for (let i = 0, len = one.length; i < len; i++) {
+        if (!itemEquals(one[i], other[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function commandEquals(a: theia.Command, b: theia.Command): boolean {
+    return a.command === b.command
+        && a.title === b.title
+        && a.tooltip === b.tooltip
+        && (a.arguments && b.arguments ? compareArgs(a.arguments, b.arguments) : a.arguments === b.arguments);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function compareArgs(a: any[], b: any[]): boolean {
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 class SourceControlResourceGroupImpl implements theia.SourceControlResourceGroup {
 
     private static handle: number = 0;
@@ -286,6 +334,9 @@ class SourceControlResourceGroupImpl implements theia.SourceControlResourceGroup
     private _resourceStates: theia.SourceControlResourceState[] = [];
     private resourceStatesMap: Map<number, theia.SourceControlResourceState> = new Map();
 
+    private readonly _onDidUpdateResourceStates = new Emitter<theia.SourceControlResourceState[]>();
+    readonly onDidUpdateResourceStates = this._onDidUpdateResourceStates.event;
+
     constructor(
         private proxy: ScmMain,
         private commands: CommandRegistryImpl,
@@ -293,6 +344,7 @@ class SourceControlResourceGroupImpl implements theia.SourceControlResourceGroup
         private _id: string,
         private _label: string,
     ) {
+        this.onDidUpdateResourceStates(debounce((resources: theia.SourceControlResourceState[]) => this.deb(resources), 500));
         this.proxy.$registerGroup(sourceControlHandle, this.handle, _id, _label);
     }
 

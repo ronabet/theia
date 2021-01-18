@@ -28,6 +28,7 @@
     "@types/mime": "^2.0.1",
     "decompress": "^4.2.1",
     "dompurify": "^2.0.11",
+    "@types/lodash.debounce": "4.0.3",
     "escape-html": "^1.0.3",
     "filenamify": "^4.1.0",
     "jsonc-parser": "^2.2.0",
