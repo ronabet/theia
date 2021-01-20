@@ -8324,9 +8324,14 @@ declare module '@theia/plugin' {
         value: string;
 
         /**
-         * A string to show as place holder in the input box to guide the user.
+         * A string to show as placeholder in the input box to guide the user.
          */
         placeholder: string;
+
+        /**
+         * Controls whether the input box is visible (default is `true`).
+         */
+        visible: boolean;
     }
 
     interface QuickDiffProvider {
@@ -8534,9 +8539,9 @@ declare module '@theia/plugin' {
         /**
          * Creates a new [source control](#SourceControl) instance.
          *
-         * @param id An `id` for the source control. Something short, eg: `git`.
-         * @param label A human-readable string for the source control. Eg: `Git`.
-         * @param rootUri An optional Uri of the root of the source control. Eg: `Uri.parse(workspaceRoot)`.
+         * @param id An `id` for the source control. Something short, e.g.: `git`.
+         * @param label A human-readable string for the source control. E.g.: `Git`.
+         * @param rootUri An optional Uri of the root of the source control. E.g.: `Uri.parse(workspaceRoot)`.
          * @return An instance of [source control](#SourceControl).
          */
         export function createSourceControl(id: string, label: string, rootUri?: Uri): SourceControl;
