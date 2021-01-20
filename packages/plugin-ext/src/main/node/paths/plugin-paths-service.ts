@@ -68,7 +68,12 @@ export class PluginPathsServiceImpl implements PluginPathsService {
             return undefined;
         }
 
-        await fs.ensureDir(parentStorageDir);
+        if (await fs.pathExists(parentStorageDir)) {
+            console.log('>>>>>>>>>>>>>>>>>> exists');
+        } else {
+            console.log('>>>>>>>>>>>>>>>>>> not exists');
+            await fs.ensureDir(parentStorageDir);
+        }
 
         const storageDirName = await this.buildWorkspaceId(workspaceUri, rootUris);
         const storageDirPath = path.join(parentStorageDir, storageDirName);
