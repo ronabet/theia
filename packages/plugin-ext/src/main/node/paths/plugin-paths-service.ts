@@ -68,11 +68,11 @@ export class PluginPathsServiceImpl implements PluginPathsService {
             return undefined;
         }
 
-        await fs.mkdirs(parentStorageDir);
+        await fs.ensureDir(parentStorageDir);
 
         const storageDirName = await this.buildWorkspaceId(workspaceUri, rootUris);
         const storageDirPath = path.join(parentStorageDir, storageDirName);
-        await fs.mkdirs(storageDirPath);
+        await fs.ensureDir(storageDirPath);
 
         return storageDirPath;
     }
