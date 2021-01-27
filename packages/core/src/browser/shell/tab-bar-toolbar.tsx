@@ -153,7 +153,12 @@ export class TabBarToolbar extends ReactWidget {
         const menuPath = ['TAB_BAR_TOOLBAR_CONTEXT_MENU'];
         const toDisposeOnHide = new DisposableCollection();
         for (const [, item] of this.more) {
-            toDisposeOnHide.push(this.menus.registerMenuAction([...menuPath, item.group!], {
+            if (item.group!.indexOf('/') > -1) {
+                const split = item.group!.split('/');
+                split.splice(2);
+                toDisposeOnHide.push(this.menus.registerSubmenu([...menuPath, ...split], split![1]));
+            }
+            toDisposeOnHide.push(this.menus.registerMenuAction([...menuPath, ...item.group!.split('/')], {
                 label: item.tooltip,
                 commandId: item.id,
                 when: item.when
@@ -266,6 +271,8 @@ export interface TabBarToolbarItem {
     /**
      * Optional group for the item. Default `navigation`.
      * `navigation` group will be inlined, while all the others will be within the `...` dropdown.
+     * A group in format `group/submenu/subgroup` means that the item will be located in a submenu of the `...` dropdown.
+     * The submenu's title is named by the submenu section name, e.g. `group/<submenu name>/subgroup`.
      */
     readonly group?: string;
 

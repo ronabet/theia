@@ -26,7 +26,7 @@ import { TabBarToolbarRegistry, TabBarToolbarItem } from '@theia/core/lib/browse
 import { NAVIGATOR_CONTEXT_MENU } from '@theia/navigator/lib/browser/navigator-contribution';
 import { QuickCommandService } from '@theia/core/lib/browser/quick-open/quick-command-service';
 import { VIEW_ITEM_CONTEXT_MENU, TreeViewWidget, VIEW_ITEM_INLINE_MENU } from '../view/tree-view-widget';
-import { DeployedPlugin, Menu, ScmCommandArg, TimelineCommandArg, TreeViewSelection } from '../../../common';
+import { DeployedPlugin, Menu, ScmCommandArg, Submenu, TimelineCommandArg, TreeViewSelection } from '../../../common';
 import { DebugStackFramesWidget } from '@theia/debug/lib/browser/view/debug-stack-frames-widget';
 import { DebugThreadsWidget } from '@theia/debug/lib/browser/view/debug-threads-widget';
 import { TreeWidgetSelection } from '@theia/core/lib/browser/tree/tree-widget-selection';
@@ -98,32 +98,39 @@ export class MenusContributionPointHandler {
         if (!allMenus) {
             return Disposable.NULL;
         }
+        const allSubmenus = plugin.contributes && plugin.contributes.submenus;
         const toDispose = new DisposableCollection();
         for (const location in allMenus) {
             if (location === 'commandPalette') {
                 for (const menu of allMenus[location]) {
-                    if (menu.when) {
+                    if (menu.command && menu.when) {
                         toDispose.push(this.quickCommandService.pushCommandContext(menu.command, menu.when));
                     }
                 }
             } else if (location === 'editor/title') {
                 for (const action of allMenus[location]) {
+                    if (!action.command) {
+                        continue;
+                    }
                     toDispose.push(this.registerTitleAction(location, action, {
-                        execute: widget => this.codeEditorWidgetUtil.is(widget) && this.commands.executeCommand(action.command, this.codeEditorWidgetUtil.getResourceUri(widget)),
-                        isEnabled: widget => this.codeEditorWidgetUtil.is(widget) && this.commands.isEnabled(action.command, this.codeEditorWidgetUtil.getResourceUri(widget)),
-                        isVisible: widget => this.codeEditorWidgetUtil.is(widget) && this.commands.isVisible(action.command, this.codeEditorWidgetUtil.getResourceUri(widget))
+                        execute: widget => this.codeEditorWidgetUtil.is(widget) && this.commands.executeCommand(action.command!, this.codeEditorWidgetUtil.getResourceUri(widget)),
+                        isEnabled: widget => this.codeEditorWidgetUtil.is(widget) && this.commands.isEnabled(action.command!, this.codeEditorWidgetUtil.getResourceUri(widget)),
+                        isVisible: widget => this.codeEditorWidgetUtil.is(widget) && this.commands.isVisible(action.command!, this.codeEditorWidgetUtil.getResourceUri(widget))
                     }));
                 }
             } else if (location === 'view/title') {
                 for (const action of allMenus[location]) {
+                    if (!action.command) {
+                        continue;
+                    }
                     toDispose.push(this.registerTitleAction(location, { ...action, when: undefined }, {
-                        execute: widget => widget instanceof PluginViewWidget && this.commands.executeCommand(action.command),
+                        execute: widget => widget instanceof PluginViewWidget && this.commands.executeCommand(action.command!),
                         isEnabled: widget => widget instanceof PluginViewWidget &&
                             this.viewContextKeys.with({ view: widget.options.viewId }, () =>
-                                this.commands.isEnabled(action.command) && this.viewContextKeys.match(action.when)),
+                                this.commands.isEnabled(action.command!) && this.viewContextKeys.match(action.when)),
                         isVisible: widget => widget instanceof PluginViewWidget &&
                             this.viewContextKeys.with({ view: widget.options.viewId }, () =>
-                                this.commands.isVisible(action.command) && this.viewContextKeys.match(action.when))
+                                this.commands.isVisible(action.command!) && this.viewContextKeys.match(action.when))
                     }));
                 }
             } else if (location === 'view/item/context') {
@@ -134,7 +141,15 @@ export class MenusContributionPointHandler {
                 }
             } else if (location === 'scm/title') {
                 for (const action of allMenus[location]) {
-                    toDispose.push(this.registerScmTitleAction(location, action));
+                    if (action.submenu) {
+                        const submenu: Submenu = allSubmenus!.find(s => s.id === action.submenu)!;
+                        for (const submenuAction of allMenus[action.submenu]) {
+                            submenuAction.group = `${action.group!.split('@')[0]}/${submenu.label}/${submenuAction.group ? submenuAction.group.split('@')[0] : '_'}`;
+                            toDispose.push(this.registerScmTitleAction(location, submenuAction));
+                        }
+                    } else if (action.command) {
+                        toDispose.push(this.registerScmTitleAction(location, action));
+                    }
                 }
             } else if (location === 'scm/resourceGroup/context') {
                 for (const menu of allMenus[location]) {
@@ -256,6 +271,9 @@ export class MenusContributionPointHandler {
     }
 
     protected registerTitleAction(location: string, action: Menu, handler: CommandHandler): Disposable {
+        if (!action.command) {
+            return Disposable.NULL;
+        }
         const toDispose = new DisposableCollection();
         const id = this.createSyntheticCommandId(action.command, { prefix: `__plugin.${location.replace('/', '.')}.action.` });
         const command: Command = { id };
@@ -301,11 +319,14 @@ export class MenusContributionPointHandler {
     }
 
     protected registerScmTitleAction(location: string, action: Menu): Disposable {
+        if (!action.command) {
+            return Disposable.NULL;
+        }
         const selectedRepository = () => this.toScmArgs(this.scmService.selectedRepository);
         return this.registerTitleAction(location, action, {
-            execute: widget => widget instanceof ScmWidget && this.commands.executeCommand(action.command, selectedRepository()),
-            isEnabled: widget => widget instanceof ScmWidget && this.commands.isEnabled(action.command, selectedRepository()),
-            isVisible: widget => widget instanceof ScmWidget && this.commands.isVisible(action.command, selectedRepository())
+            execute: widget => widget instanceof ScmWidget && this.commands.executeCommand(action.command!, selectedRepository()),
+            isEnabled: widget => widget instanceof ScmWidget && this.commands.isEnabled(action.command!, selectedRepository()),
+            isVisible: widget => widget instanceof ScmWidget && this.commands.isVisible(action.command!, selectedRepository())
         });
     }
     protected registerScmMenuAction(menuPath: MenuPath, menu: Menu): Disposable {
@@ -403,6 +424,9 @@ export class MenusContributionPointHandler {
     }
 
     protected registerMenuAction(menuPath: MenuPath, menu: Menu, handler: (command: string) => CommandHandler): Disposable {
+        if (!menu.command) {
+            return Disposable.NULL;
+        }
         const toDispose = new DisposableCollection();
         const commandId = this.createSyntheticCommandId(menu.command, { prefix: '__plugin.menu.action.' });
         const command: Command = { id: commandId };
