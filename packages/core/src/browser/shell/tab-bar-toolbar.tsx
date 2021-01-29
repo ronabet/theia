@@ -153,7 +153,7 @@ export class TabBarToolbar extends ReactWidget {
         const menuPath = ['TAB_BAR_TOOLBAR_CONTEXT_MENU'];
         const toDisposeOnHide = new DisposableCollection();
         for (const [, item] of this.more) {
-            if (item.group!.indexOf('/') > -1) {
+            if (item.group!.indexOf('/') !== -1) {
                 const split = item.group!.split('/');
                 split.splice(2);
                 toDisposeOnHide.push(this.menus.registerSubmenu([...menuPath, ...split], split![1]));
