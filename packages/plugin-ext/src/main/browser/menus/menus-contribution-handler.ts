@@ -140,17 +140,20 @@ export class MenusContributionPointHandler {
                     toDispose.push(this.registerTreeMenuAction(menuPath, menu));
                 }
             } else if (location === 'scm/title') {
-                for (const action of allMenus[location]) {
-                    if (action.submenu) {
-                        const submenu: Submenu = allSubmenus!.find(s => s.id === action.submenu)!;
-                        for (const submenuAction of allMenus[action.submenu]) {
-                            submenuAction.group = `${action.group!.split('@')[0]}/${submenu.label}/${submenuAction.group ? submenuAction.group.split('@')[0] : '_'}`;
-                            toDispose.push(this.registerScmTitleAction(location, submenuAction));
+                const registerActions = (menus: Menu[], group: string | undefined) => {
+                    for (const action of menus) {
+                        if (group) {
+                            action.group = group + (action.group ? '/' + action.group.split('@')[0] : '/_');
                         }
-                    } else if (action.command) {
-                        toDispose.push(this.registerScmTitleAction(location, action));
+                        if (action.submenu) {
+                            const submenu: Submenu = allSubmenus!.find(s => s.id === action.submenu)!;
+                            registerActions(allMenus[action.submenu], action.group!.split('@')[0] + '/' + submenu.label);
+                        } else {
+                            toDispose.push(this.registerScmTitleAction(location, action));
+                        }
                     }
-                }
+                };
+                registerActions(allMenus[location], undefined);
             } else if (location === 'scm/resourceGroup/context') {
                 for (const menu of allMenus[location]) {
                     const inline = menu.group && /^inline/.test(menu.group) || false;
