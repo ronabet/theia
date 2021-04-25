@@ -14,7 +14,7 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { inject, injectable, postConstruct } from 'inversify';
+import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import {
     TreeWidget,
     CompositeTreeNode,
@@ -37,17 +37,18 @@ import {
 } from '@theia/editor/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { FileResourceResolver, FileSystemPreferences } from '@theia/filesystem/lib/browser';
+import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { SearchInWorkspaceResult, SearchInWorkspaceOptions, SearchMatch } from '../common/search-in-workspace-interface';
 import { SearchInWorkspaceService } from './search-in-workspace-service';
 import { MEMORY_TEXT } from './in-memory-text-resource';
 import URI from '@theia/core/lib/common/uri';
-import * as React from 'react';
+import * as React from '@theia/core/shared/react';
 import { SearchInWorkspacePreferences } from './search-in-workspace-preferences';
 import { ProgressService } from '@theia/core';
 import { ColorRegistry } from '@theia/core/lib/browser/color-registry';
 import * as minimatch from 'minimatch';
 import { DisposableCollection } from '@theia/core/lib/common/disposable';
-import debounce = require('lodash.debounce');
+import debounce = require('@theia/core/shared/lodash.debounce');
 
 const ROOT_ID = 'ResultTree';
 
@@ -140,6 +141,7 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
     @inject(ProgressService) protected readonly progressService: ProgressService;
     @inject(ColorRegistry) protected readonly colorRegistry: ColorRegistry;
     @inject(FileSystemPreferences) protected readonly filesystemPreferences: FileSystemPreferences;
+    @inject(FileService) protected readonly fileService: FileService;
 
     constructor(
         @inject(TreeProps) readonly props: TreeProps,
@@ -189,6 +191,16 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
 
         this.toDispose.push(this.searchInWorkspacePreferences.onPreferenceChanged(() => {
             this.update();
+        }));
+
+        this.toDispose.push(this.fileService.onDidFilesChange(event => {
+            if (event.gotDeleted()) {
+                event.getDeleted().forEach(deletedFile => {
+                    const fileNodes = this.getFileNodesByUri(deletedFile.resource);
+                    fileNodes.forEach(node => this.removeFileNode(node));
+                });
+                this.model.refresh();
+            }
         }));
     }
 
@@ -989,8 +1001,14 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
 
     protected async createReplacePreview(node: SearchInWorkspaceFileNode): Promise<URI> {
         const fileUri = new URI(node.fileUri).withScheme('file');
-        const resource = await this.fileResourceResolver.resolve(fileUri);
-        const content = await resource.readContents();
+        const openedEditor = this.editorManager.all.find(({ editor }) => editor.uri.toString() === fileUri.toString());
+        let content: string;
+        if (openedEditor) {
+            content = openedEditor.editor.document.getText();
+        } else {
+            const resource = await this.fileResourceResolver.resolve(fileUri);
+            content = await resource.readContents();
+        }
 
         const lines = content.split('\n');
         node.children.map(l => {

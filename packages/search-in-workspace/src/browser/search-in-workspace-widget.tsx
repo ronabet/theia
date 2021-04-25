@@ -14,12 +14,12 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { Widget, Message, BaseWidget, Key, StatefulWidget, MessageLoop } from '@theia/core/lib/browser';
-import { inject, injectable, postConstruct } from 'inversify';
+import { Widget, Message, BaseWidget, Key, StatefulWidget, MessageLoop, KeyCode } from '@theia/core/lib/browser';
+import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { SearchInWorkspaceResultTreeWidget } from './search-in-workspace-result-tree-widget';
 import { SearchInWorkspaceOptions } from '../common/search-in-workspace-interface';
-import * as React from 'react';
-import * as ReactDOM from 'react-dom';
+import * as React from '@theia/core/shared/react';
+import * as ReactDOM from '@theia/core/shared/react-dom';
 import { Event, Emitter, Disposable } from '@theia/core/lib/common';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { SearchInWorkspaceContextKeyService } from './search-in-workspace-context-key-service';
@@ -359,10 +359,22 @@ export class SearchInWorkspaceWidget extends BaseWidget implements StatefulWidge
         this.searchFieldContainerIsFocused = true;
         this.update();
     }
-    protected readonly unfocusSearchFieldContainer = () => this.doUnfocusSearchFieldContainer();
-    protected doUnfocusSearchFieldContainer(): void {
+
+    protected readonly blurSearchFieldContainer = () => this.doBlurSearchFieldContainer();
+    protected doBlurSearchFieldContainer(): void {
         this.searchFieldContainerIsFocused = false;
         this.update();
+    }
+
+    /**
+     * @deprecated use `blurSearchFieldContainer` instead.
+     */
+    protected readonly unfocusSearchFieldContainer = this.blurSearchFieldContainer;
+    /**
+     * @deprecated use `doBlurSearchFieldContainer` instead.
+     */
+    protected doUnfocusSearchFieldContainer(): void {
+        this.doBlurSearchFieldContainer();
     }
 
     protected readonly search = (e: React.KeyboardEvent) => {
@@ -375,7 +387,7 @@ export class SearchInWorkspaceWidget extends BaseWidget implements StatefulWidge
     };
 
     protected readonly onKeyDownSearch = (e: React.KeyboardEvent) => {
-        if (e.keyCode === Key.ENTER.keyCode) {
+        if (Key.ENTER.keyCode === KeyCode.createKeyCode(e.nativeEvent).key?.keyCode) {
             this.searchTerm = (e.target as HTMLInputElement).value;
             this.resultTreeWidget.search(this.searchTerm, (this.searchInWorkspaceOptions || {}));
         }
@@ -384,9 +396,9 @@ export class SearchInWorkspaceWidget extends BaseWidget implements StatefulWidge
     protected doSearch(e: React.KeyboardEvent): void {
         if (e.target) {
             const searchValue = (e.target as HTMLInputElement).value;
-            if (Key.ARROW_DOWN.keyCode === e.keyCode) {
+            if (Key.ARROW_DOWN.keyCode === KeyCode.createKeyCode(e.nativeEvent).key?.keyCode) {
                 this.resultTreeWidget.focusFirstResult();
-            } else if (this.searchTerm === searchValue && Key.ENTER.keyCode !== e.keyCode) {
+            } else if (this.searchTerm === searchValue && Key.ENTER.keyCode !== KeyCode.createKeyCode(e.nativeEvent).key?.keyCode) {
                 return;
             } else {
                 this.searchTerm = searchValue;
@@ -415,7 +427,7 @@ export class SearchInWorkspaceWidget extends BaseWidget implements StatefulWidge
         const tooMany = this.searchInWorkspaceOptions.maxResults && this.resultNumber >= this.searchInWorkspaceOptions.maxResults ? 'tooManyResults' : '';
         const className = `search-field-container ${tooMany} ${this.searchFieldContainerIsFocused ? 'focused' : ''}`;
         return <div className={className}>
-            <div className='search-field' tabIndex={-1} onFocus={this.focusSearchFieldContainer} onBlur={this.unfocusSearchFieldContainer}>
+            <div className='search-field' tabIndex={-1} onFocus={this.focusSearchFieldContainer} onBlur={this.blurSearchFieldContainer}>
                 {input}
                 {optionContainer}
             </div>
@@ -541,10 +553,27 @@ export class SearchInWorkspaceWidget extends BaseWidget implements StatefulWidge
                 id={kind + '-glob-field'}
                 onKeyUp={e => {
                     if (e.target) {
-                        if (Key.ENTER.keyCode === e.keyCode) {
+                        const targetValue = (e.target as HTMLInputElement).value || '';
+                        let shouldSearch = Key.ENTER.keyCode === KeyCode.createKeyCode(e.nativeEvent).key?.keyCode;
+                        const currentOptions = (this.searchInWorkspaceOptions[kind] || []).slice().map(s => s.trim()).sort();
+                        const candidateOptions = this.splitOnComma(targetValue).map(s => s.trim()).sort();
+                        const sameAs = (left: string[], right: string[]) => {
+                            if (left.length !== right.length) {
+                                return false;
+                            }
+                            for (let i = 0; i < left.length; i++) {
+                                if (left[i] !== right[i]) {
+                                    return false;
+                                }
+                            }
+                            return true;
+                        };
+                        if (!sameAs(currentOptions, candidateOptions)) {
+                            this.searchInWorkspaceOptions[kind] = this.splitOnComma(targetValue);
+                            shouldSearch = true;
+                        }
+                        if (shouldSearch) {
                             this.resultTreeWidget.search(this.searchTerm, this.searchInWorkspaceOptions);
-                        } else {
-                            this.searchInWorkspaceOptions[kind] = this.splitOnComma((e.target as HTMLInputElement).value);
                         }
                     }
                 }}

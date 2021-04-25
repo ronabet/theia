@@ -23,10 +23,11 @@ import {
 } from '../../common/plugin-api-rpc';
 import * as theia from '@theia/plugin';
 import * as converter from '../type-converters';
-import { Disposable } from '../types-impl';
+import { CustomExecution, Disposable } from '../types-impl';
 import { RPCProtocol, ConnectionClosedError } from '../../common/rpc-protocol';
 import { TaskProviderAdapter } from './task-provider';
 import { Emitter, Event } from '@theia/core/lib/common/event';
+import { TerminalServiceExtImpl } from '../terminal-ext';
 
 export class TasksExtImpl implements TasksExt {
     private proxy: TasksMain;
@@ -34,6 +35,10 @@ export class TasksExtImpl implements TasksExt {
     private callId = 0;
     private adaptersMap = new Map<number, TaskProviderAdapter>();
     private executions = new Map<number, theia.TaskExecution>();
+    protected providedCustomExecutions: Map<number, CustomExecution>;
+    protected notProvidedCustomExecutions: Set<number>;
+    protected activeCustomExecutions: Map<number, CustomExecution>;
+    protected lastStartedTask: number | undefined;
 
     private readonly onDidExecuteTask: Emitter<theia.TaskStartEvent> = new Emitter<theia.TaskStartEvent>();
     private readonly onDidTerminateTask: Emitter<theia.TaskEndEvent> = new Emitter<theia.TaskEndEvent>();
@@ -42,8 +47,11 @@ export class TasksExtImpl implements TasksExt {
 
     private disposed = false;
 
-    constructor(rpc: RPCProtocol) {
+    constructor(rpc: RPCProtocol, readonly terminalExt: TerminalServiceExtImpl) {
         this.proxy = rpc.getProxy(PLUGIN_RPC_CONTEXT.TASKS_MAIN);
+        this.providedCustomExecutions = new Map<number, CustomExecution>();
+        this.notProvidedCustomExecutions = new Set<number>();
+        this.activeCustomExecutions = new Map<number, CustomExecution>();
         this.fetchTaskExecutions();
     }
 
@@ -59,7 +67,28 @@ export class TasksExtImpl implements TasksExt {
         return this.onDidExecuteTask.event;
     }
 
-    $onDidStartTask(execution: TaskExecutionDto): void {
+    async $onDidStartTask(execution: TaskExecutionDto, terminalId: number): Promise<void> {
+        const customExecution: CustomExecution | undefined = this.providedCustomExecutions.get(execution.task.id);
+        if (customExecution) {
+            if (this.activeCustomExecutions.get(execution.id) !== undefined) {
+                throw new Error('We should not be trying to start the same custom task executions twice.');
+            }
+
+            // Clone the custom execution to keep the original untouched. This is important for multiple runs of the same task.
+            this.activeCustomExecutions.set(execution.id, customExecution);
+            const taskDefinition = converter.toTask(execution.task).definition;
+            const pty = await customExecution.callback(taskDefinition);
+            this.terminalExt.attachPtyToTerminal(terminalId, pty);
+            if (pty.onDidClose) {
+                const disposable = pty.onDidClose((e: number | void = undefined) => {
+                    disposable.dispose();
+                    // eslint-disable-next-line no-void
+                    this.proxy.$customExecutionComplete(execution.id, e === void 0 ? undefined : e);
+                });
+            }
+        }
+        this.lastStartedTask = execution.id;
+
         this.onDidExecuteTask.fire({
             execution: this.getTaskExecution(execution)
         });
@@ -76,6 +105,7 @@ export class TasksExtImpl implements TasksExt {
         }
 
         this.executions.delete(id);
+        this.customExecutionComplete(id);
 
         this.onDidTerminateTask.fire({
             execution: taskExecution
@@ -125,6 +155,12 @@ export class TasksExtImpl implements TasksExt {
     async executeTask(task: theia.Task): Promise<theia.TaskExecution> {
         const taskDto = converter.fromTask(task);
         if (taskDto) {
+            // If this task is a custom execution, then we need to save it away
+            // in the provided custom execution map that is cleaned up after the
+            // task is executed.
+            if (CustomExecution.is(task.execution!)) {
+                this.addCustomExecution(taskDto, false);
+            }
             const executionDto = await this.proxy.$executeTask(taskDto);
             if (executionDto) {
                 const taskExecution = this.getTaskExecution(executionDto);
@@ -138,7 +174,16 @@ export class TasksExtImpl implements TasksExt {
     $provideTasks(handle: number, token: theia.CancellationToken): Promise<TaskDto[] | undefined> {
         const adapter = this.adaptersMap.get(handle);
         if (adapter) {
-            return adapter.provideTasks(token);
+            return adapter.provideTasks(token).then(tasks => {
+                if (tasks) {
+                    for (const task of tasks) {
+                        if (task.type === 'customExecution' || task.taskType === 'customExecution') {
+                            this.addCustomExecution(task, true);
+                        }
+                    }
+                }
+                return tasks;
+            });
         } else {
             return Promise.reject(new Error('No adapter found to provide tasks'));
         }
@@ -197,5 +242,38 @@ export class TasksExtImpl implements TasksExt {
         };
         this.executions.set(executionId, result);
         return result;
+    }
+
+    private addCustomExecution(taskDto: TaskDto, isProvided: boolean): void {
+        const taskId = taskDto.id;
+        if (!isProvided && !this.providedCustomExecutions.has(taskId)) {
+            this.notProvidedCustomExecutions.add(taskId);
+        }
+        this.providedCustomExecutions.set(taskDto.id, new CustomExecution(taskDto.callback));
+    }
+
+    private customExecutionComplete(id: number): void {
+        const extensionCallback2: CustomExecution | undefined = this.activeCustomExecutions.get(id);
+        if (extensionCallback2) {
+            this.activeCustomExecutions.delete(id);
+        }
+
+        // Technically we don't really need to do this, however, if an extension
+        // is executing a task through "executeTask" over and over again
+        // with different properties in the task definition, then the map of executions
+        // could grow indefinitely, something we don't want.
+        if (this.notProvidedCustomExecutions.has(id) && (this.lastStartedTask !== id)) {
+            this.providedCustomExecutions.delete(id);
+            this.notProvidedCustomExecutions.delete(id);
+        }
+        const iterator = this.notProvidedCustomExecutions.values();
+        let iteratorResult = iterator.next();
+        while (!iteratorResult.done) {
+            if (!this.activeCustomExecutions.has(iteratorResult.value) && (this.lastStartedTask !== iteratorResult.value)) {
+                this.providedCustomExecutions.delete(iteratorResult.value);
+                this.notProvidedCustomExecutions.delete(iteratorResult.value);
+            }
+            iteratorResult = iterator.next();
+        }
     }
 }

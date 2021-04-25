@@ -29,8 +29,8 @@ import { TerminalWidget } from '@theia/terminal/lib/browser/base/terminal-widget
 import { TerminalWidgetFactoryOptions } from '@theia/terminal/lib/browser/terminal-widget-impl';
 import { VariableResolverService } from '@theia/variable-resolver/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
-import { inject, injectable, named, postConstruct } from 'inversify';
-import { DiagnosticSeverity, Range } from 'vscode-languageserver-types';
+import { inject, injectable, named, postConstruct } from '@theia/core/shared/inversify';
+import { DiagnosticSeverity, Range } from '@theia/core/shared/vscode-languageserver-types';
 import {
     ApplyToKind,
     BackgroundTaskEndedEvent,
@@ -450,6 +450,10 @@ export class TaskService implements TaskConfigurationClient {
         return this.taskServer.getTasks(this.getContext());
     }
 
+    async customExecutionComplete(id: number, exitCode: number | undefined): Promise<void> {
+        return this.taskServer.customExecutionComplete(id, exitCode);
+    }
+
     /** Returns an array of task types that are registered, including the default types */
     getRegisteredTaskTypes(): Promise<string[]> {
         return this.taskSchemaUpdater.getRegisteredTaskTypes();
@@ -837,7 +841,7 @@ export class TaskService implements TaskConfigurationClient {
     }
 
     /**
-     * Runs a task identified by the given identifier, but only if found in the give workspace folder
+     * Runs a task identified by the given identifier, but only if found in the given workspace folder
      *
      * @param token  The cache token for the user interaction in progress
      * @param workspaceFolderUri  The folder to restrict the search to
@@ -1022,11 +1026,11 @@ export class TaskService implements TaskConfigurationClient {
 
         const registeredProblemMatchers = this.problemMatcherRegistry.getAll();
         items.push(...registeredProblemMatchers.map(matcher =>
-            ({
-                label: matcher.label,
-                value: { problemMatchers: [matcher] },
-                description: matcher.name.startsWith('$') ? matcher.name : `$${matcher.name}`
-            })
+        ({
+            label: matcher.label,
+            value: { problemMatchers: [matcher] },
+            description: matcher.name.startsWith('$') ? matcher.name : `$${matcher.name}`
+        })
         ));
         return items;
     }
@@ -1105,6 +1109,7 @@ export class TaskService implements TaskConfigurationClient {
      * @param task The task to configure
      */
     async configure(token: number, task: TaskConfiguration): Promise<void> {
+        Object.assign(task, { label: this.taskNameResolver.resolve(task) });
         await this.taskConfigurations.configure(token, task);
     }
 

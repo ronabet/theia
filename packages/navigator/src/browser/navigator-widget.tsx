@@ -14,8 +14,8 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { injectable, inject, postConstruct } from 'inversify';
-import { Message } from '@phosphor/messaging';
+import { injectable, inject, postConstruct } from '@theia/core/shared/inversify';
+import { Message } from '@theia/core/shared/@phosphor/messaging';
 import URI from '@theia/core/lib/common/uri';
 import { CommandService, SelectionService } from '@theia/core/lib/common';
 import { CorePreferences, Key, TreeModel, SelectableTreeNode } from '@theia/core/lib/browser';
@@ -29,7 +29,7 @@ import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shel
 import { WorkspaceNode, WorkspaceRootNode } from './navigator-tree';
 import { FileNavigatorModel } from './navigator-model';
 import { isOSX, environment } from '@theia/core';
-import * as React from 'react';
+import * as React from '@theia/core/shared/react';
 import { NavigatorContextKeyService } from './navigator-context-key-service';
 import { FileNavigatorCommands } from './navigator-contribution';
 
@@ -107,7 +107,9 @@ export class FileNavigatorWidget extends FileTreeWidget {
                     this.model.toggleNode(treeNode);
                 }
             });
-            this.commandService.executeCommand(FileNavigatorCommands.OPEN.id);
+            if (treeNodes.length > 0) {
+                this.commandService.executeCommand(FileNavigatorCommands.OPEN.id);
+            }
         });
         const handler = (e: DragEvent) => {
             if (e.dataTransfer) {

@@ -14,7 +14,7 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { injectable } from 'inversify';
+import { injectable } from '@theia/core/shared/inversify';
 import { Event, Emitter } from '@theia/core/lib/common';
 import { TaskConfiguration, TaskDefinition, TaskCustomization } from '../common';
 import { Disposable } from '@theia/core/lib/common/disposable';
@@ -114,8 +114,13 @@ export class TaskDefinitionRegistry {
         }
         const def = this.getDefinition(one);
         if (def) {
-            // scope is either a string or an enum value. Anyway...the must exactly match
-            return def.properties.all.every(p => p === 'type' || one[p] === other[p]) && one._scope === other._scope;
+            // scope is either a string or an enum value. Anyway...they must exactly match
+            // "_scope" may hold the Uri to the associated workspace whereas
+            // "scope" reflects the original TaskConfigurationScope as provided by plugins,
+            // Matching "_scope" or "scope" are both accepted in order to correlate provided task
+            // configurations (e.g. TaskScope.Workspace) against already configured tasks.
+            return def.properties.all.every(p => p === 'type' || one[p] === other[p])
+                && (one._scope === other._scope || one.scope === other.scope);
         }
         return one.label === other.label && one._source === other._source;
     }

@@ -173,7 +173,16 @@ export class TabBarToolbar extends ReactWidget {
         const menuPath = ['TAB_BAR_TOOLBAR_CONTEXT_MENU'];
         const toDisposeOnHide = new DisposableCollection();
         for (const [, item] of this.more) {
-            toDisposeOnHide.push(this.menus.registerMenuAction([...menuPath, item.group!], {
+            // Register a submenu for the item, if the group is in format `<submenu group>/<submenu name>/.../<item group>`
+            if (item.group!.indexOf('/') !== -1) {
+                const split = item.group!.split('/');
+                const paths: string[] = [];
+                for (let i = 0; i < split.length - 1; i += 2) {
+                    paths.push(split[i], split[i + 1]);
+                    toDisposeOnHide.push(this.menus.registerSubmenu([...menuPath, ...paths], split[i + 1]));
+                }
+            }
+            toDisposeOnHide.push(this.menus.registerMenuAction([...menuPath, ...item.group!.split('/')], {
                 label: item.tooltip,
                 commandId: item.id,
                 when: item.when
@@ -188,7 +197,7 @@ export class TabBarToolbar extends ReactWidget {
     }
 
     shouldHandleMouseEvent(event: MouseEvent): boolean {
-        return event.target instanceof Element && (!!this.inline.get(event.target.id) || event.target.id === '__more__');
+        return event.target instanceof Element && this.node.contains(event.target);
     }
 
     protected commandIsEnabled(command: string): boolean {
@@ -291,6 +300,8 @@ export interface TabBarToolbarItem {
     /**
      * Optional group for the item. Default `navigation`.
      * `navigation` group will be inlined, while all the others will be within the `...` dropdown.
+     * A group in format `submenu_group_1/submenu 1/.../submenu_group_n/ submenu n/item_group` means that the item will be located in a submenu(s) of the `...` dropdown.
+     * The submenu's title is named by the submenu section name, e.g. `group/<submenu name>/subgroup`.
      */
     readonly group?: string;
 
@@ -442,6 +453,13 @@ export class TabBarToolbarRegistry implements FrontendApplicationContribution {
             }
         }
         return result;
+    }
+
+    unregisterItem(itemOrId: TabBarToolbarItem | ReactTabBarToolbarItem | string): void {
+        const id = typeof itemOrId === 'string' ? itemOrId : itemOrId.id;
+        if (this.items.delete(id)) {
+            this.fireOnDidChange();
+        }
     }
 
 }

@@ -14,7 +14,7 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { inject, injectable, postConstruct } from 'inversify';
+import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import {
     TaskConfiguration,
     TaskCustomization,
@@ -146,7 +146,7 @@ export class TaskConfigurations implements Disposable {
     }
 
     getRawTaskConfigurations(scope?: TaskConfigurationScope): (TaskCustomization | TaskConfiguration)[] {
-        if (!scope) {
+        if (scope === undefined) {
             const tasks: (TaskCustomization | TaskConfiguration)[] = [];
             for (const configs of this.rawTaskConfigurations.values()) {
                 tasks.push(...configs);
@@ -304,10 +304,6 @@ export class TaskConfigurations implements Disposable {
         const scope = task._scope;
         if (scope === TaskScope.Global) {
             return this.openUserTasks();
-        } else if (typeof scope !== 'string') {
-            console.error('Global task cannot be customized');
-            // TODO detected tasks of scope workspace or user could be customized in those preferences.
-            return;
         }
 
         const workspace = this.workspaceService.workspace;
@@ -317,7 +313,7 @@ export class TaskConfigurations implements Disposable {
 
         const configuredAndCustomizedTasks = await this.getTasks(token);
         if (!configuredAndCustomizedTasks.some(t => this.taskDefinitionRegistry.compareTasks(t, task))) {
-            await this.saveTask(scope, { ...task, problemMatcher: [] });
+            await this.saveTask(scope, task);
         }
 
         try {
@@ -359,6 +355,9 @@ export class TaskConfigurations implements Disposable {
         if (task.group) {
             customization.group = task.group;
         }
+
+        customization.label = task.label;
+
         return { ...customization };
     }
 

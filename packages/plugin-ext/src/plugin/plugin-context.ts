@@ -95,6 +95,7 @@ import {
     ShellQuoting,
     ShellExecution,
     ProcessExecution,
+    CustomExecution,
     TaskScope,
     TaskPanelKind,
     TaskRevealKind,
@@ -129,14 +130,15 @@ import {
     SemanticTokens,
     SemanticTokensEdits,
     SemanticTokensEdit,
-    ColorThemeKind
+    ColorThemeKind,
+    SourceControlInputBoxValidationType
 } from './types-impl';
 import { AuthenticationExtImpl } from './authentication-ext';
 import { SymbolKind } from '../common/plugin-api-rpc-model';
 import { EditorsAndDocumentsExtImpl } from './editors-and-documents';
 import { TextEditorsExtImpl } from './text-editors';
 import { DocumentsExtImpl } from './documents';
-import { URI as Uri } from 'vscode-uri';
+import { URI as Uri } from '@theia/core/shared/vscode-uri';
 import { TextEditorCursorStyle } from '../common/editor-options';
 import { PreferenceRegistryExtImpl } from './preference-registry';
 import { OutputChannelRegistryExtImpl } from './output-channel-registry';
@@ -165,6 +167,7 @@ import { LabelServiceExtImpl } from '../plugin/label-service';
 import { TimelineExtImpl } from './timeline';
 import { ThemingExtImpl } from './theming';
 import { CommentsExtImpl } from './comments';
+import { CustomEditorsExtImpl } from './custom-editors';
 
 export function createAPIFactory(
     rpc: RPCProtocol,
@@ -192,7 +195,7 @@ export function createAPIFactory(
     const outputChannelRegistryExt = rpc.set(MAIN_RPC_CONTEXT.OUTPUT_CHANNEL_REGISTRY_EXT, new OutputChannelRegistryExtImpl(rpc));
     const languagesExt = rpc.set(MAIN_RPC_CONTEXT.LANGUAGES_EXT, new LanguagesExtImpl(rpc, documents, commandRegistry));
     const treeViewsExt = rpc.set(MAIN_RPC_CONTEXT.TREE_VIEWS_EXT, new TreeViewsExtImpl(rpc, commandRegistry));
-    const tasksExt = rpc.set(MAIN_RPC_CONTEXT.TASKS_EXT, new TasksExtImpl(rpc));
+    const tasksExt = rpc.set(MAIN_RPC_CONTEXT.TASKS_EXT, new TasksExtImpl(rpc, terminalExt));
     const connectionExt = rpc.set(MAIN_RPC_CONTEXT.CONNECTION_EXT, new ConnectionExtImpl(rpc));
     const fileSystemExt = rpc.set(MAIN_RPC_CONTEXT.FILE_SYSTEM_EXT, new FileSystemExtImpl(rpc, languagesExt));
     const extHostFileSystemEvent = rpc.set(MAIN_RPC_CONTEXT.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpc, editorsAndDocumentsExt));
@@ -202,6 +205,7 @@ export function createAPIFactory(
     const timelineExt = rpc.set(MAIN_RPC_CONTEXT.TIMELINE_EXT, new TimelineExtImpl(rpc, commandRegistry));
     const themingExt = rpc.set(MAIN_RPC_CONTEXT.THEMING_EXT, new ThemingExtImpl(rpc));
     const commentsExt = rpc.set(MAIN_RPC_CONTEXT.COMMENTS_EXT, new CommentsExtImpl(rpc, commandRegistry, documents));
+    const customEditorExt = rpc.set(MAIN_RPC_CONTEXT.CUSTOM_EDITORS_EXT, new CustomEditorsExtImpl(rpc, documents, webviewExt, workspaceExt));
     rpc.set(MAIN_RPC_CONTEXT.DEBUG_EXT, debugExt);
 
     return function (plugin: InternalPlugin): typeof theia {
@@ -396,6 +400,11 @@ export function createAPIFactory(
             registerWebviewPanelSerializer(viewType: string, serializer: theia.WebviewPanelSerializer): theia.Disposable {
                 return webviewExt.registerWebviewPanelSerializer(viewType, serializer, plugin);
             },
+            registerCustomEditorProvider(viewType: string,
+                provider: theia.CustomTextEditorProvider | theia.CustomReadonlyEditorProvider,
+                options: { webviewOptions?: theia.WebviewPanelOptions, supportsMultipleEditorsPerDocument?: boolean } = {}): theia.Disposable {
+                return customEditorExt.registerCustomEditorProvider(viewType, provider, options, plugin);
+            },
             get state(): theia.WindowState {
                 return windowStateExt.getWindowState();
             },
@@ -432,6 +441,9 @@ export function createAPIFactory(
             createInputBox(): theia.InputBox {
                 return quickOpenExt.createInputBox(plugin);
             },
+            registerTerminalLinkProvider(provider: theia.TerminalLinkProvider): void {
+                /* NOOP. To be implemented at later stage */
+            },
             get activeColorTheme(): theia.ColorTheme {
                 return themingExt.activeColorTheme;
             },
@@ -451,6 +463,9 @@ export function createAPIFactory(
             },
             get workspaceFolders(): theia.WorkspaceFolder[] | undefined {
                 return workspaceExt.workspaceFolders;
+            },
+            get workspaceFile(): Uri | undefined {
+                return workspaceExt.workspaceFile;
             },
             get name(): string | undefined {
                 return workspaceExt.name;
@@ -896,6 +911,7 @@ export function createAPIFactory(
             ShellQuoting,
             ShellExecution,
             ProcessExecution,
+            CustomExecution,
             TaskScope,
             TaskRevealKind,
             TaskPanelKind,
@@ -930,7 +946,8 @@ export function createAPIFactory(
             SemanticTokens,
             SemanticTokensEdits,
             SemanticTokensEdit,
-            ColorThemeKind
+            ColorThemeKind,
+            SourceControlInputBoxValidationType
         };
     };
 }

@@ -22,10 +22,10 @@
 /* eslint-disable no-null/no-null */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { UUID } from '@phosphor/coreutils/lib/uuid';
+import { UUID } from '@theia/core/shared/@phosphor/coreutils';
 import { illegalArgument } from '../common/errors';
 import * as theia from '@theia/plugin';
-import { URI } from 'vscode-uri';
+import { URI } from '@theia/core/shared/vscode-uri';
 import { relative } from '../common/paths-util';
 import { startsWithIgnoreCase } from '@theia/core/lib/common/strings';
 import { MarkdownString, isMarkdownString } from './markdown-string';
@@ -102,6 +102,27 @@ export enum ColorThemeKind {
     Light = 1,
     Dark = 2,
     HighContrast = 3
+}
+
+/**
+ * Represents the validation type of the Source Control input.
+ */
+export enum SourceControlInputBoxValidationType {
+
+    /**
+     * Something not allowed by the rules of a language or other means.
+     */
+    Error = 0,
+
+    /**
+     * Something suspicious but allowed.
+     */
+    Warning = 1,
+
+    /**
+     * Something to inform about but not a problem.
+     */
+    Information = 2
 }
 
 export class ColorTheme implements theia.ColorTheme {
@@ -1050,45 +1071,61 @@ export interface FileOperationOptions {
     ignoreIfNotExists?: boolean;
     recursive?: boolean;
 }
+
+// copied from https://github.com/microsoft/vscode/blob/b165e20587dd0797f37251515bc9e4dbe513ede8/src/vs/editor/common/modes.ts
+export interface WorkspaceEditMetadata {
+    needsConfirmation: boolean;
+    label: string;
+    description?: string;
+    iconPath?: {
+        id: string;
+    } | {
+        light: URI;
+        dark: URI;
+    };
+}
+
 export interface FileOperation {
     _type: 1;
     from: URI | undefined;
     to: URI | undefined;
     options?: FileOperationOptions;
+    metadata?: WorkspaceEditMetadata;
 }
 
 export interface FileTextEdit {
     _type: 2;
     uri: URI;
     edit: TextEdit;
+    metadata?: WorkspaceEditMetadata;
 }
 
 export class WorkspaceEdit implements theia.WorkspaceEdit {
 
     private _edits = new Array<FileOperation | FileTextEdit | undefined>();
 
-    renameFile(from: theia.Uri, to: theia.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void {
-        this._edits.push({ _type: 1, from, to, options });
+    renameFile(from: theia.Uri, to: theia.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditMetadata): void {
+        this._edits.push({ _type: 1, from, to, options, metadata });
     }
 
-    createFile(uri: theia.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void {
-        this._edits.push({ _type: 1, from: undefined, to: uri, options });
+    createFile(uri: theia.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditMetadata): void {
+        this._edits.push({ _type: 1, from: undefined, to: uri, options, metadata });
     }
 
-    deleteFile(uri: theia.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }): void {
-        this._edits.push({ _type: 1, from: uri, to: undefined, options });
+    deleteFile(uri: theia.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditMetadata): void {
+        this._edits.push({ _type: 1, from: uri, to: undefined, options, metadata });
     }
 
-    replace(uri: URI, range: Range, newText: string): void {
-        this._edits.push({ _type: 2, uri, edit: new TextEdit(range, newText) });
+    replace(uri: URI, range: Range, newText: string, metadata?: WorkspaceEditMetadata): void {
+        this._edits.push({ _type: 2, uri, edit: new TextEdit(range, newText), metadata });
     }
 
-    insert(resource: URI, position: Position, newText: string): void {
-        this.replace(resource, new Range(position, position), newText);
+    insert(resource: URI, position: Position, newText: string, metadata?: WorkspaceEditMetadata): void {
+        this.replace(resource, new Range(position, position), newText, metadata);
     }
 
-    delete(resource: URI, range: Range): void {
-        this.replace(resource, range, '');
+    delete(resource: URI, range: Range, metadata?: WorkspaceEditMetadata): void {
+        this.replace(resource, range, '', metadata);
     }
 
     has(uri: URI): boolean {
@@ -1150,16 +1187,16 @@ export class WorkspaceEdit implements theia.WorkspaceEdit {
         return result;
     }
 
-    _allEntries(): ([URI, TextEdit[]] | [URI, URI, FileOperationOptions])[] {
-        const res: ([URI, TextEdit[]] | [URI, URI, FileOperationOptions])[] = [];
+    _allEntries(): ([URI, TextEdit[], WorkspaceEditMetadata] | [URI, URI, FileOperationOptions, WorkspaceEditMetadata])[] {
+        const res: ([URI, TextEdit[], WorkspaceEditMetadata] | [URI, URI, FileOperationOptions, WorkspaceEditMetadata])[] = [];
         for (const edit of this._edits) {
             if (!edit) {
                 continue;
             }
             if (edit._type === 1) {
-                res.push([edit.from!, edit.to!, edit.options!]);
+                res.push([edit.from!, edit.to!, edit.options!, edit.metadata!]);
             } else {
-                res.push([edit.uri, [edit.edit]]);
+                res.push([edit.uri, [edit.edit], edit.metadata!]);
             }
         }
         return res;
@@ -1506,7 +1543,7 @@ export class ProcessExecution {
         return computeTaskExecutionId(props);
     }
 
-    public static is(value: theia.ShellExecution | theia.ProcessExecution): boolean {
+    public static is(value: theia.ShellExecution | theia.ProcessExecution | theia.CustomExecution): boolean {
         const candidate = value as ProcessExecution;
         return candidate && !!candidate.process;
     }
@@ -1614,9 +1651,32 @@ export class ShellExecution {
         return computeTaskExecutionId(props);
     }
 
-    public static is(value: theia.ShellExecution | theia.ProcessExecution): boolean {
+    public static is(value: theia.ShellExecution | theia.ProcessExecution | theia.CustomExecution): boolean {
         const candidate = value as ShellExecution;
         return candidate && (!!candidate.commandLine || !!candidate.command);
+    }
+}
+
+export class CustomExecution {
+    private _callback: (resolvedDefintion: theia.TaskDefinition) => Thenable<theia.Pseudoterminal>;
+    constructor(callback: (resolvedDefintion: theia.TaskDefinition) => Thenable<theia.Pseudoterminal>) {
+        this._callback = callback;
+    }
+    public computeId(): string {
+        return 'customExecution' + UUID.uuid4();
+    }
+
+    public set callback(value: (resolvedDefintion: theia.TaskDefinition) => Thenable<theia.Pseudoterminal>) {
+        this._callback = value;
+    }
+
+    public get callback(): ((resolvedDefintion: theia.TaskDefinition) => Thenable<theia.Pseudoterminal>) {
+        return this._callback;
+    }
+
+    public static is(value: theia.ShellExecution | theia.ProcessExecution | theia.CustomExecution): boolean {
+        const candidate = value as CustomExecution;
+        return candidate && (!!candidate._callback);
     }
 }
 
@@ -1667,19 +1727,19 @@ export class Task {
     private taskDefinition: theia.TaskDefinition;
     private taskScope: theia.TaskScope.Global | theia.TaskScope.Workspace | theia.WorkspaceFolder | undefined;
     private taskName: string;
-    private taskExecution: ProcessExecution | ShellExecution | undefined;
+    private taskExecution: ProcessExecution | ShellExecution | CustomExecution | undefined;
     private taskProblemMatchers: string[];
     private hasTaskProblemMatchers: boolean;
     private isTaskBackground: boolean;
     private taskSource: string;
     private taskGroup: TaskGroup | undefined;
-    private taskPresentationOptions: theia.TaskPresentationOptions | undefined;
+    private taskPresentationOptions: theia.TaskPresentationOptions;
     constructor(
         taskDefinition: theia.TaskDefinition,
         scope: theia.WorkspaceFolder | theia.TaskScope.Global | theia.TaskScope.Workspace,
         name: string,
         source: string,
-        execution?: ProcessExecution | ShellExecution,
+        execution?: ProcessExecution | ShellExecution | CustomExecution,
         problemMatchers?: string | string[]
     );
 
@@ -1688,7 +1748,7 @@ export class Task {
         taskDefinition: theia.TaskDefinition,
         name: string,
         source: string,
-        execution?: ProcessExecution | ShellExecution,
+        execution?: ProcessExecution | ShellExecution | CustomExecution,
         problemMatchers?: string | string[],
     );
 
@@ -1698,7 +1758,7 @@ export class Task {
         let scope: theia.WorkspaceFolder | theia.TaskScope.Global | theia.TaskScope.Workspace | undefined;
         let name: string;
         let source: string;
-        let execution: ProcessExecution | ShellExecution | undefined;
+        let execution: ProcessExecution | ShellExecution | CustomExecution | undefined;
         let problemMatchers: string | string[] | undefined;
 
         if (typeof args[1] === 'string') {
@@ -1737,6 +1797,7 @@ export class Task {
             this.hasTaskProblemMatchers = false;
         }
         this.isTaskBackground = false;
+        this.presentationOptions = Object.create(null);
     }
 
     get definition(): theia.TaskDefinition {
@@ -1772,11 +1833,11 @@ export class Task {
         this.taskName = value;
     }
 
-    get execution(): ProcessExecution | ShellExecution | undefined {
+    get execution(): ProcessExecution | ShellExecution | CustomExecution | undefined {
         return this.taskExecution;
     }
 
-    set execution(value: ProcessExecution | ShellExecution | undefined) {
+    set execution(value: ProcessExecution | ShellExecution | CustomExecution | undefined) {
         if (value === null) {
             value = undefined;
         }
@@ -1836,13 +1897,13 @@ export class Task {
         this.taskGroup = value;
     }
 
-    get presentationOptions(): theia.TaskPresentationOptions | undefined {
+    get presentationOptions(): theia.TaskPresentationOptions {
         return this.taskPresentationOptions;
     }
 
-    set presentationOptions(value: theia.TaskPresentationOptions | undefined) {
-        if (value === null) {
-            value = undefined;
+    set presentationOptions(value: theia.TaskPresentationOptions) {
+        if (value === null || value === undefined) {
+            value = Object.create(null);
         }
         this.taskPresentationOptions = value;
     }
@@ -1850,14 +1911,23 @@ export class Task {
     private updateDefinitionBasedOnExecution(): void {
         if (this.taskExecution instanceof ProcessExecution) {
             Object.assign(this.taskDefinition, {
-                type: 'process',
                 id: this.taskExecution.computeId(),
-                taskType: this.taskDefinition!.type
+                taskType: 'process'
             });
         } else if (this.taskExecution instanceof ShellExecution) {
             Object.assign(this.taskDefinition, {
-                type: 'shell',
                 id: this.taskExecution.computeId(),
+                taskType: 'shell'
+            });
+        } else if (this.taskExecution instanceof CustomExecution) {
+            Object.assign(this.taskDefinition, {
+                id: this.taskDefinition.id ? this.taskDefinition.id : this.taskExecution.computeId(),
+                taskType: 'customExecution'
+            });
+        } else {
+            Object.assign(this.taskDefinition, {
+                type: '$empty',
+                id: UUID.uuid4(),
                 taskType: this.taskDefinition!.type
             });
         }

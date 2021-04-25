@@ -14,11 +14,12 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { injectable, inject, named } from 'inversify';
+import { injectable, inject, named } from '@theia/core/shared/inversify';
 import { ITokenTypeMap, IEmbeddedLanguagesMap, StandardTokenType } from 'vscode-textmate';
 import { TextmateRegistry, getEncodedLanguageId, MonacoTextmateService, GrammarDefinition } from '@theia/monaco/lib/browser/textmate';
 import { MenusContributionPointHandler } from './menus/menus-contribution-handler';
 import { PluginViewRegistry } from './view/plugin-view-registry';
+import { PluginCustomEditorRegistry } from './custom-editors/plugin-custom-editor-registry';
 import { PluginContribution, IndentationRules, FoldingRules, ScopeMap, DeployedPlugin, GrammarsContribution } from '../../common';
 import {
     DefaultUriLabelProviderContribution,
@@ -50,6 +51,9 @@ export class PluginContributionHandler {
 
     @inject(PluginViewRegistry)
     private readonly viewRegistry: PluginViewRegistry;
+
+    @inject(PluginCustomEditorRegistry)
+    private readonly customEditorRegistry: PluginCustomEditorRegistry;
 
     @inject(MenusContributionPointHandler)
     private readonly menusContributionHandler: MenusContributionPointHandler;
@@ -231,6 +235,14 @@ export class PluginContributionHandler {
         pushContribution('commands', () => this.registerCommands(contributions));
         pushContribution('menus', () => this.menusContributionHandler.handle(plugin));
         pushContribution('keybindings', () => this.keybindingsContributionHandler.handle(contributions));
+
+        if (contributions.customEditors) {
+            for (const customEditor of contributions.customEditors) {
+                pushContribution(`customEditors.${customEditor.viewType}`,
+                    () => this.customEditorRegistry.registerCustomEditor(customEditor)
+                );
+            }
+        }
 
         if (contributions.viewsContainers) {
             for (const location in contributions.viewsContainers) {

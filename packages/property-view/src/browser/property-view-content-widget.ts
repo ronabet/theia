@@ -1,5 +1,5 @@
 /********************************************************************************
- * Copyright (C) 2020 Ericsson and others.
+ * Copyright (C) 2020 EclipseSource and others.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0 which is available at
@@ -13,15 +13,10 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
-import { injectable } from 'inversify';
-import { Emitter } from '@theia/core/lib/common/event';
-import { Preference } from './preference-types';
 
-@injectable()
-export class PreferencesEventService {
-    onTabScopeSelected = new Emitter<Preference.SelectedScopeDetails>();
-    onSearch = new Emitter<Preference.SearchQuery>();
-    onEditorScroll = new Emitter<Preference.MouseScrollDetails>();
-    onNavTreeSelection = new Emitter<Preference.SelectedTreeNode>();
-    onDisplayChanged = new Emitter<boolean>();
+import { Widget } from '@theia/core/lib/browser/widgets/widget';
+import { PropertyDataService } from './property-data-service';
+
+export interface PropertyViewContentWidget extends Widget {
+    updatePropertyViewContent(propertyDataService?: PropertyDataService, selection?: Object): void;
 }

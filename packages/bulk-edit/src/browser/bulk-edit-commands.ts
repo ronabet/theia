@@ -1,5 +1,5 @@
 /********************************************************************************
- * Copyright (C) 2020 Ericsson and others.
+ * Copyright (c) 2021 SAP SE or an SAP affiliate company and others.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0 which is available at
@@ -14,11 +14,20 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { ElectronMainApplicationContribution } from '@theia/core/lib/electron-main/electron-main-application';
-import { ContainerModule } from 'inversify';
-import { MiniBrowserElectronMainContribution } from './mini-browser-electron-main-contribution';
+import { Command } from '@theia/core/lib/common';
 
-export default new ContainerModule(bind => {
-    bind(MiniBrowserElectronMainContribution).toSelf().inSingletonScope();
-    bind(ElectronMainApplicationContribution).toService(MiniBrowserElectronMainContribution);
-});
+export namespace BulkEditCommands {
+    export const TOGGLE_VIEW: Command = {
+        id: 'bulk-edit:toggleView'
+    };
+
+    export const APPLY: Command = {
+        id: 'bulk-edit:apply',
+        iconClass: 'codicon codicon-check'
+    };
+
+    export const DISCARD: Command = {
+        id: 'bulk-edit:discard',
+        iconClass: 'clear-all'
+    };
+}
